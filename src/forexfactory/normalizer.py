@@ -33,7 +33,10 @@ def clean(value) -> str:
 
 
 def parse_event_datetime(value: str | None, tzname: str, *, date_value: str | None = None, time_value: str | None = None) -> datetime | None:
-    tz = gettz(tzname)
+    if tzname.upper() == "UTC":
+        tz = timezone.utc
+    else:
+        tz = gettz(tzname) or gettz("UTC")
     text = clean(value)
     try:
         if text:
@@ -49,7 +52,15 @@ def parse_event_datetime(value: str | None, tzname: str, *, date_value: str | No
 
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=tz)
-    return dt.astimezone(tz)
+    try:
+        return dt.astimezone(tz)
+    except Exception:
+        if dt.tzinfo:
+            offset = dt.tzinfo.utcoffset(dt)
+            if offset:
+                dt_utc = dt.replace(tzinfo=None) - offset
+                return dt_utc.replace(tzinfo=timezone.utc).astimezone(tz)
+        return dt.replace(tzinfo=tz)
 
 
 def normalize_event(raw: dict, tzname: str, default_source: str = "") -> dict:
