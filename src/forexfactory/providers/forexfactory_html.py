@@ -160,6 +160,15 @@ def _parse_day_text(text: str, fallback_date: datetime, tzname: str) -> datetime
     return parsed.replace(tzinfo=gettz(tzname))
 
 
+def _page_timezone(html: str) -> str | None:
+    """Sayfanın bildirdiği IANA saat dilimi (ör. 'Europe/Istanbul'); yoksa None."""
+    import re
+    from dateutil.tz import gettz
+
+    match = re.search(r"timezone_name:\s*'([^']+)'", html)
+    return match.group(1) if match and gettz(match.group(1)) else None
+
+
 class ForexFactoryHtmlProvider:
     name = "forexfactory-html"
 
@@ -183,7 +192,9 @@ class ForexFactoryHtmlProvider:
                 if self.debug:
                     dump_http_debug(result, "calendar_selector_missing", f"http_calendar_{week.date().isoformat()}", export_links)
                 raise ProviderError("calendar_selector_missing", f"Calendar rows were not found in fetched HTML for {url}.")
-            events.extend(parse_calendar_html(result.text, result.final_url, week, tzname))
+            # Sayfa saatleri istek yapanın IP'sine göre bir saat diliminde gösterir; o dilimi kullan.
+            page_tz = _page_timezone(result.text) or tzname
+            events.extend(parse_calendar_html(result.text, result.final_url, week, page_tz))
 
         return [
             event for event in events
